@@ -1,0 +1,14 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "node $HOME/.claude/statusline.js"
+  },
+  "enabledPlugins": {
+    "playwright@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "notion@claude-plugins-official": true,
+    "figma@claude-plugins-official": true
+  },
+  "autoUpdatesChannel": "latest",
+  "skipDangerousModePermissionPrompt": true
+}

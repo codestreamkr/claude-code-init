@@ -1,0 +1,13 @@
+# 전부 무시
+*
+
+# 공유 대상만 허용
+!.gitignore
+!CLAUDE.md
+!settings.json
+!statusline.js
+!commands/
+!commands/**
+!install.ps1
+!install.sh
+!README.md
