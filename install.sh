@@ -53,8 +53,8 @@ fi
 # [3/5] MCP 서버 등록
 echo "[3/5] Registering MCP servers..."
 if command -v claude &>/dev/null; then
-    claude mcp add magic npx -y @21st-dev/magic && echo "  registered: magic" || echo "  skipped: magic"
-    claude mcp add sequential-thinking npx -y @modelcontextprotocol/server-sequential-thinking && echo "  registered: sequential-thinking" || echo "  skipped: sequential-thinking"
+    claude mcp add magic npx -- -y @21st-dev/magic && echo "  registered: magic" || echo "  skipped: magic"
+    claude mcp add sequential-thinking npx -- -y @modelcontextprotocol/server-sequential-thinking && echo "  registered: sequential-thinking" || echo "  skipped: sequential-thinking"
 else
     echo "  skipped (claude not found)"
 fi

@@ -61,9 +61,9 @@ if (Test-Path $gitDir) {
 # [3/4] MCP 서버 등록
 Write-Host "[3/4] Registering MCP servers..." -ForegroundColor Cyan
 if (Get-Command claude -ErrorAction SilentlyContinue) {
-    & claude mcp add magic npx -y @21st-dev/magic
+    & claude mcp add magic npx -- -y @21st-dev/magic
     if ($LASTEXITCODE -eq 0) { Write-Host "  registered: magic" } else { Write-Host "  skipped: magic" }
-    & claude mcp add sequential-thinking npx -y @modelcontextprotocol/server-sequential-thinking
+    & claude mcp add sequential-thinking npx -- -y @modelcontextprotocol/server-sequential-thinking
     if ($LASTEXITCODE -eq 0) { Write-Host "  registered: sequential-thinking" } else { Write-Host "  skipped: sequential-thinking" }
 } else {
     Write-Host "  skipped (claude not found)"
