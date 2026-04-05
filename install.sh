@@ -84,3 +84,11 @@ echo "  Location: $CLAUDE_DIR"
 echo "  Push changes: cd $CLAUDE_DIR && git add -A && git commit -m 'update' && git push"
 echo ""
 echo "Next: run 'claude' to authenticate and verify."
+
+# 임시 클론 디렉토리 정리
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+case "$SCRIPT_DIR" in
+    /tmp/*)
+        rm -rf "$SCRIPT_DIR"
+        ;;
+esac

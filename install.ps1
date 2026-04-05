@@ -89,3 +89,9 @@ Write-Host "  Location: $ClaudeDir"
 Write-Host "  Push changes: cd $ClaudeDir && git add -A && git commit -m 'update' && git push"
 Write-Host ""
 Write-Host "Next: run 'claude' to authenticate and verify." -ForegroundColor Yellow
+
+# 임시 클론 디렉토리 정리
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+if ($ScriptDir -like "$env:TEMP*") {
+    Remove-Item $ScriptDir -Recurse -Force
+}
