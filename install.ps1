@@ -8,8 +8,8 @@ param(
 $ErrorActionPreference = "Stop"
 $ClaudeDir = "$env:USERPROFILE\.claude"
 
-# [1/3] ~/.claude/ 디렉토리 준비
-Write-Host "[1/3] Preparing ~/.claude/ ..." -ForegroundColor Cyan
+# [1/4] ~/.claude/ 디렉토리 준비
+Write-Host "[1/4] Preparing ~/.claude/ ..." -ForegroundColor Cyan
 if (-not (Test-Path $ClaudeDir)) {
     New-Item -ItemType Directory -Path $ClaudeDir -Force | Out-Null
     Write-Host "  ~/.claude/ created"
@@ -17,8 +17,8 @@ if (-not (Test-Path $ClaudeDir)) {
     Write-Host "  ~/.claude/ already exists"
 }
 
-# [2/3] git repo 연결
-Write-Host "[2/3] Connecting git repo..." -ForegroundColor Cyan
+# [2/4] git repo 연결
+Write-Host "[2/4] Connecting git repo..." -ForegroundColor Cyan
 $gitDir = Join-Path $ClaudeDir ".git"
 
 if (Test-Path $gitDir) {
@@ -58,8 +58,19 @@ if (Test-Path $gitDir) {
     Write-Host "  cloned and applied"
 }
 
-# [3/3] 결과 확인
-Write-Host "[3/3] Verifying..." -ForegroundColor Cyan
+# [3/4] MCP 서버 등록
+Write-Host "[3/4] Registering MCP servers..." -ForegroundColor Cyan
+if (Get-Command claude -ErrorAction SilentlyContinue) {
+    & claude mcp add magic npx -y @21st-dev/magic
+    if ($LASTEXITCODE -eq 0) { Write-Host "  registered: magic" } else { Write-Host "  skipped: magic" }
+    & claude mcp add sequential-thinking npx -y @modelcontextprotocol/server-sequential-thinking
+    if ($LASTEXITCODE -eq 0) { Write-Host "  registered: sequential-thinking" } else { Write-Host "  skipped: sequential-thinking" }
+} else {
+    Write-Host "  skipped (claude not found)"
+}
+
+# [4/4] 결과 확인
+Write-Host "[4/4] Verifying..." -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Installed files:" -ForegroundColor Green
 $configFiles = @("CLAUDE.md", "settings.json", "statusline.js", ".gitignore")

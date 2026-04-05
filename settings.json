@@ -9,6 +9,7 @@
     "notion@claude-plugins-official": true,
     "figma@claude-plugins-official": true
   },
+  "alwaysThinkingEnabled": true,
   "autoUpdatesChannel": "latest",
   "skipDangerousModePermissionPrompt": true
 }
