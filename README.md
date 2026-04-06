@@ -3,20 +3,20 @@
 새로운 PC에서 동일한 Claude Code 환경을 구성하기 위한 가이드.  
 설정 파일은 GitHub에서 관리하며, 설치 스크립트로 한 줄 설치 가능.  
 
-https://github.com/fightmin/claude-code-init
+https://github.com/codestream/claude-code-init
 
 ## 1단계: Claude Code 설치
 
 ### Windows (PowerShell)
 ```powershell
 irm https://claude.ai/install.ps1 | iex
-git clone https://github.com/fightmin/claude-code-init.git $env:TEMP\claude-init; & $env:TEMP\claude-init\install.ps1
+git clone https://github.com/codestream/claude-code-init.git $env:TEMP\claude-init; & $env:TEMP\claude-init\install.ps1
 ```
 
 ### Mac/Linux
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
-git clone https://github.com/fightmin/claude-code-init.git /tmp/claude-init && bash /tmp/claude-init/install.sh
+git clone https://github.com/codestream/claude-code-init.git /tmp/claude-init && bash /tmp/claude-init/install.sh
 ```
 
 ## 2단계: 설치 결과 확인
