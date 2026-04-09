@@ -1,8 +1,8 @@
 # Claude Code Init - Windows PowerShell
-# Usage: git clone https://github.com/fightmin/claude-code-init.git $env:TEMP\claude-init; & $env:TEMP\claude-init\install.ps1
+# Usage: git clone https://github.com/codestreamkr/claude-code-init.git $env:TEMP\claude-init; & $env:TEMP\claude-init\install.ps1
 
 param(
-    [string]$Repo = "https://github.com/fightmin/claude-code-init.git"
+    [string]$Repo = "https://github.com/codestreamkr/claude-code-init.git"
 )
 
 $ErrorActionPreference = "Stop"

@@ -1,10 +1,10 @@
 #!/bin/bash
 # Claude Code Init - Mac/Linux
-# Usage: git clone https://github.com/fightmin/claude-code-init.git /tmp/claude-init && bash /tmp/claude-init/install.sh
+# Usage: git clone https://github.com/codestreamkr/claude-code-init.git /tmp/claude-init && bash /tmp/claude-init/install.sh
 
 set -e
 
-REPO="${1:-https://github.com/fightmin/claude-code-init.git}"
+REPO="${1:-https://github.com/codestreamkr/claude-code-init.git}"
 CLAUDE_DIR="$HOME/.claude"
 
 # [1/4] ~/.claude/ 디렉토리 준비
