@@ -28,7 +28,7 @@ irm https://claude.ai/install.ps1 | iex
 git clone https://github.com/codestreamkr/claude-code-init.git $env:TEMP\claude-init; & $env:TEMP\claude-init\install.ps1
 ```
 
-`irm https://claude.ai/install.ps1 | iex` 실행 중 인증서 오류가 나면, 아래처럼 현재 세션에서만 임시로 인증서 검증을 우회한 뒤 다시 실행할 수 있습니다.
+설치 중 인증서 오류가 나면, 아래처럼 현재 세션에서만 임시로 인증서 검증을 우회한 뒤 다시 실행할 수 있습니다.
 
 ```powershell
 $prev = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
@@ -42,7 +42,7 @@ curl -fsSL https://claude.ai/install.sh | bash
 git clone https://github.com/codestreamkr/claude-code-init.git /tmp/claude-init && bash /tmp/claude-init/install.sh
 ```
 
-`curl -fsSL https://claude.ai/install.sh | bash` 실행 중 인증서 오류가 나면, 아래처럼 현재 실행에서만 인증서 검증을 우회해 다시 시도할 수 있습니다.
+설치 중 인증서 오류가 나면, 아래처럼 현재 실행에서만 인증서 검증을 우회해 다시 시도할 수 있습니다.
 
 ```bash
 curl -kfsSL https://claude.ai/install.sh | bash
