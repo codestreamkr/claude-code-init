@@ -81,12 +81,13 @@ curl -kfsSL https://claude.ai/install.sh | bash
 
 백업 후 이 저장소의 파일로 덮어씁니다. 기존 설정을 유지하려면 설치 후 백업 파일을 직접 병합하세요.
 
-이미 git 저장소로 관리 중인 경우에는 백업 없이 `git fetch origin && git reset --hard origin/main`으로 최신 상태로 업데이트됩니다.
+이미 git 저장소로 관리 중인 경우에는 백업 없이 최신 상태로 업데이트됩니다.  
+`git fetch origin && git reset --hard origin/main`
 
 ### skipDangerousModePermissionPrompt
 
-`settings.json`에는 `skipDangerousModePermissionPrompt: true`가 포함되어 있습니다.
-위험 작업(파일 삭제, 강제 푸시 등) 실행 시 확인 프롬프트를 건너뛰는 설정입니다.
+`settings.json > skipDangerousModePermissionPrompt: true`  
+위험 작업(파일 삭제, 강제 푸시 등) 실행 시 확인 프롬프트를 건너뛰는 설정입니다.  
 필요에 따라 `false`로 변경하거나 해당 항목을 제거하세요.
 
 ## 3단계: 설정 변경 후 동기화
