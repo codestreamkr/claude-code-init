@@ -25,6 +25,7 @@ brew install node
 
 ```powershell
 irm https://claude.ai/install.ps1 | iex
+
 git clone https://github.com/codestreamkr/claude-code-init.git $env:TEMP\claude-init; & $env:TEMP\claude-init\install.ps1
 ```
 
@@ -39,6 +40,7 @@ try { irm https://claude.ai/install.ps1 | iex } finally { [System.Net.ServicePoi
 ### Mac/Linux
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
+
 git clone https://github.com/codestreamkr/claude-code-init.git /tmp/claude-init && bash /tmp/claude-init/install.sh
 ```
 
@@ -89,7 +91,10 @@ curl -kfsSL https://claude.ai/install.sh | bash
 
 ## 3단계: 설정 변경 후 동기화
 
-`~/.claude/`가 git 저장소이므로, 로컬에서 설정을 바꾼 뒤 바로 push해 다른 PC와 동기화할 수 있습니다.
+`~/.claude/`가 git 저장소이므로, 로컬에서 설정을 바꾼 뒤 커밋해서 다른 PC와 동기화할 수 있습니다.
+
+이 저장소에 쓰기 권한이 있는 사용자는 바로 `push`하면 됩니다.  
+다른 사용자는 이 저장소를 `fork`한 뒤, `~/.claude/`의 원격 저장소도 자신의 fork로 바꿔서 사용해야 합니다.
 
 ```bash
 # Windows
