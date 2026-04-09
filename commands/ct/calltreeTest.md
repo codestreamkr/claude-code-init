@@ -108,19 +108,70 @@ public void setUp() {
 
 ## Shared Fixture 규칙
 
-- 같은 엔드포인트 요청 구조를 2개 이상 call이 공유할 때 적용한다.
-- 파일 위치: `src/test/resources/{domain}/{entrypoint}/base-request.json`
+### 적용 조건
+- 여러 테스트가 같은 header/body/payment/meta 구조를 공유할 때
+- call-site 분기가 입력 JSON/Map에 의해 결정될 때
+- `fixtureGroup`에 노드가 2개 이상이면 shared fixture 기본 적용
+
+### fixtureStrategy 해석
+- `shared-request`: 공통 request fixture를 먼저 만들고, helper는 꼭 필요한 최소 범위만 둔다.
+- `shared-helper`: 공통 request fixture와 `applyXTrigger`, `executeXIfApplicable` helper를 함께 설계한다. helper는 운영코드 분기 재현용으로만 쓰고, 테스트 전용 게이트를 추가하지 않는다.
+
+### 기본 파일
+- `src/test/resources/{domain}/{entrypoint}/base-request.json`
 - UnitTest는 반드시 base-request.json을 로드하여 입력을 구성한다. `new VO() + setter` 하드코딩 금지.
 - 테스트별 조건 변경은 Map에서 값을 덮어쓴 뒤 VO로 변환하는 방식으로 처리한다.
-- helper는 운영코드 분기만 재현한다. 운영코드에 없는 외부 게이트를 추가하지 않는다.
+
+### 기본 helper 패턴
+
+```java
+private boolean isTargetApplicable(Map<String, Object> reqJson) { ... }
+
+private void applyTargetTrigger(Map<String, Object> reqJson) { ... }
+
+private ReturnType executeTargetIfApplicable(Map<String, Object> reqJson) { ... }
+
+private void applySecondaryTrigger(Map<String, Object> reqJson) { ... }
+
+private ReturnType executeSecondaryIfApplicable(Map<String, Object> reqJson) { ... }
+```
+
+### helper 규칙
+1. helper는 실제 호출 구조를 재현하기 위한 최소 범위로만 만든다.
+2. helper 안에 운영코드에 없는 외부 게이트를 새로 만들지 않는다.
+3. negative 케이스도 가능하면 helper를 실제로 실행한다.
+4. helper가 `null`, `emptyList`, `0` 등을 반환하는 경우 그 의미가 운영코드 분기와 맞아야 한다.
+5. `shared-helper` 전략이면 helper 이름도 실제 call family가 드러나게 유지한다.
+6. fixture 하나로 2개 이상 call family를 재현할 수 있게 설계한다.
+
+좋은 예: `executeLookupIfApplicable(req)`가 조건 미충족 시 `null` 반환
+나쁜 예: 운영 메서드는 항상 호출되는데 helper가 임의로 호출을 차단
 
 ## 로그 패턴
 
 - `[TAG][STEP]` 형식을 사용한다.
 - production method 호출 직전에 `[➡️ CALL]` 로그를 반드시 남긴다.
 - negative 케이스에서도 미호출/생략 결과가 로그로 드러나야 한다.
-- 내부 로직이 있으면 단계 의미가 드러나는 로그를 남긴다 (`[BASE_MAPPING]`, `[DTO_MAPPING]`, `[NO_SERVICE_CALL]` 등).
+- 내부 로직이 있으면 단계 의미가 드러나는 로그를 남긴다.
 - **모든 `@Test` 메서드에 적용한다.** UnitTest, Controller 직접 호출, `ReflectionTestUtils.invokeMethod` 모두 동일.
+
+### 호출 직전 로그
+
+```java
+log.info("[DOMAIN_TEST][TARGET_METHOD][➡️ CALL] service.targetMethod(arg1={}, arg2={}) 호출 직전",
+        arg1, arg2);
+```
+
+### 단계 로그 대표 태그
+
+| 태그 | 사용 시점 |
+|------|-----------|
+| `[BASE_MAPPING]` | 기본 필드 매핑 단계 |
+| `[DTO_MAPPING]` | DTO 조립/변환 단계 |
+| `[REQUEST_PARAM]` | 요청 파라미터 확인 |
+| `[SUM]` | 합산/집계 결과 |
+| `[NO_SERVICE_CALL]` | 내부 조건으로 하위 서비스 호출 생략 |
+| `[EXPECTED_ERROR_LOG]` | 의도적 예외 삼킴 케이스에서 error 로그 |
 
 ## 노드 완료 게이트
 
@@ -232,54 +283,51 @@ public void setUp() {
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class {FlowName}MethodMainTest {
 
+    private Map<String, Object> reqJson;
+
+    @Before
+    public void setUp() {
+        reqJson = TestResourceLoader.load{FixtureName}Base();
+    }
+
     /**
      * 현재 반영 범위: {family1}, {family2}, {family3}
+     * benchmark 수준 작업이면 최소 4개 이상의 testNN_* 묶음을 둔다.
      */
 
     @Test
     public void test01_{shortCallName}() {
-        runOrderedTests(1, "{callNode}",
-                testCase({UnitTestClass}.class, "{testMethod1}"),
-                testCase({UnitTestClass}.class, "{testMethod2}"));
+        {UnitTestClass} ut = new {UnitTestClass}();
+        ut.setUp();
+        ut.{testMethod1}(reqJson);
+
+        {UnitTestClass} ut2 = new {UnitTestClass}();
+        ut2.setUp();
+        ut2.{testMethod2}(reqJson);
     }
 
     @Test
     public void test02_{anotherCallFamily}() {
-        runOrderedTests(2, "{callNode2}",
-                testCase({UnitTestClass2}.class, "{testMethod3}"),
-                testCase({UnitTestClass2}.class, "{testMethod4}"));
+        {UnitTestClass2} ut = new {UnitTestClass2}();
+        ut.setUp();
+        ut.{testMethod3}(reqJson);
+
+        {UnitTestClass2} ut2 = new {UnitTestClass2}();
+        ut2.setUp();
+        ut2.{testMethod4}(reqJson);
     }
-
-    private void runOrderedTests(int no, String callNode, TestCaseRef... testCaseRefs) {
-        List<String> failures = new ArrayList<String>();
-        JUnitCore junitCore = new JUnitCore();
-
-        for (TestCaseRef testCaseRef : testCaseRefs) {
-            Result result = junitCore.run(Request.method(testCaseRef.testClass, testCaseRef.methodName));
-            if (!result.wasSuccessful()) {
-                for (Failure failure : result.getFailures()) {
-                    failures.add(testCaseRef.testClass.getSimpleName() + "#" + testCaseRef.methodName + " -> " + failure.toString());
-                }
-            }
-        }
-
-        Assert.assertTrue(buildFailureMessage(no, callNode, failures), failures.isEmpty());
-    }
-
-    private String buildFailureMessage(int no, String callNode, List<String> failures) { ... }
-
-    private TestCaseRef testCase(Class<?> testClass, String methodName) { ... }
-
-    private static final class TestCaseRef { ... }
 }
 ```
 
 ### MainTest 고정 규칙
 1. `@FixMethodOrder(MethodSorters.NAME_ASCENDING)` + `test01_...` 형태 사용
 2. 번호는 CallTree 순서 기준
-3. `runOrderedTests`, `buildFailureMessage`, `testCase`, `TestCaseRef` 포함
-4. partial 상태면 클래스 Javadoc에 현재 반영 범위를 명시
-5. 각 `testNN_*`는 branch family 또는 call family 묶음을 대표하도록 잡는다
+3. `@Before`에서 공통 fixture(`reqJson`)를 한 번 로드한다.
+4. 각 `testNN_*`에서 UnitTest 인스턴스를 만들고 `setUp()` 후 테스트 메서드를 직접 호출한다.
+5. partial 상태면 클래스 Javadoc에 현재 반영 범위를 명시
+6. benchmark 수준 작업이면 최소 4개 이상의 `testNN_*` 묶음을 목표로 한다.
+7. 각 `testNN_*`는 call 하나만이 아니라 branch family 또는 call family 묶음을 대표하도록 잡는다.
+8. MainTest가 `reqJson`을 넘겨 호출하는 UnitTest 메서드는 `xxx()` + `xxx(Map<String,Object>)` 오버로드 페어를 갖춰야 한다.
 
 ## MainTest 보조 문서 템플릿
 
@@ -287,21 +335,46 @@ public class {FlowName}MethodMainTest {
 # {MainTestClass} 흐름 정리
 
 ## 문서 정보
-- 대상 테스트: `{relative-path-to-main-test}`
-- 관련 운영 코드: `{relative-path-to-controller-or-service}`
-- 관련 엔드포인트: `{entrypoint-or-flow}`
-- 작성 시각: `{timestamp}`
+- 대상 테스트:
+  `{relative-path-to-main-test}`
+- 관련 운영 코드:
+  `{relative-path-to-controller-or-service}`
+- 관련 엔드포인트:
+  `{entrypoint-or-flow}`
+- 작성 시각:
+  `{timestamp}`
 
 ## 개요
-{흐름} 오케스트레이션에서 핵심 호출 노드를 번호 순서로 묶어 실행하는 메인 테스트 오케스트레이터다.
+이 클래스는 `{entryMethod}` 컨트롤러를 통째로 호출하는 통합 테스트가 아니라,
+{흐름} 오케스트레이션에서 핵심 호출 노드를 번호 순서로 묶어 실행하는
+메인 테스트 오케스트레이터다.
+
+- `@FixMethodOrder(MethodSorters.NAME_ASCENDING)`으로
+  `test01`부터 `testNN`까지 순차 실행한다.
+- 각 `testNN_*` 메서드는 대응 UnitTest를 직접 생성하고
+  `setUp()` 후 `_Test(reqJson)`/negative 케이스를 순서대로 호출한다.
+- MainTest가 호출하는 UnitTest 메서드는 `xxx(Map<String,Object>)`와 무파라미터 `@Test` 페어를 함께 유지한다.
+
+## 공통 실행 흐름
+{MainTestClass}
+└─ testNN_*()
+   ├─ reqJson fixture 준비(@Before)
+   ├─ UnitTest 인스턴스 생성
+   ├─ setUp() 호출
+   ├─ _Test(reqJson) 호출
+   └─ negative 케이스(reqJson) 호출
 
 ## 흐름 트리
 {MainTestClass}
 ├─ 1. {그룹명}
 │  ├─ test01_{methodName} -> {service}.{method}()
 │  │  ├─ {UnitTestClass}#{methodName}_Test
+│  │  │  └─ {정상 케이스 검증 의도}
 │  │  └─ {UnitTestClass}#{methodName}_{사유}_{Throws*|NoCall}
-│  └─ test02_{methodName} -> ...
+│  │     └─ {예외/미호출 케이스 검증 의도}
+│  └─ test02_{methodName} -> {service}.{method}()
+│     ├─ ...
+│     └─ ...
 └─ N. {그룹명}
    └─ ...
 
@@ -315,7 +388,102 @@ public class {FlowName}MethodMainTest {
 ### 보조 문서 고정 규칙
 1. partial이면 그 사실을 문서에도 표시
 2. 각 `testNN_*`는 `callNode -> 하위 테스트 메서드 -> 검증 의도`까지 적는다
-3. CallTree의 `bundle`, `priority`, `mainTestGroup` 정보가 있으면 문서에도 반영한다
+3. 메인 테스트 번호 순서는 CallTree 순서를 따른다
+4. CallTree의 `bundle`, `priority`, `mainTestGroup` 정보가 있으면 문서에도 같은 기준을 드러낸다
+5. 흐름 트리에서 각 testNN 하위에 UnitTest 메서드명과 검증 의도를 한 줄씩 기재한다
+6. "유지된 커버리지"는 흐름 트리의 그룹 단위로 커버 범위를 요약한다
+7. "별도 점검 필요 항목"은 현재 MainTest가 커버하지 못하는 영역을 명시한다
+8. "권장 보강 시나리오"는 추가 테스트로 고정 회귀에 포함할 만한 구체적 조건을 나열한다
+
+## 외부 조건 vs 내부 조건
+
+### 외부 조건
+- 호출자(controller, 상위 service, helper)의 분기에서 대상 메서드 호출 자체를 막는 조건
+- 외부 조건이 false이면 대상 메서드는 실행되지 않는다
+- **이 경우만 `..._NoCall` 이름을 쓴다**
+
+### 내부 조건
+- 대상 메서드 본문에 진입한 뒤 내부 service/DAO/side effect 실행을 막는 조건
+- 대상 메서드는 호출되므로 `NoCall`을 쓰지 않는다
+- 내부에서 생략되는 내용을 이름에 드러낸다 (`_NoServiceCall`, `_Skip` 등)
+
+## 자주 틀리는 패턴
+
+1. MainTest는 파라미터 호출인데 UnitTest 오버로드 페어(`xxx(Map<String,Object>)`)가 없는 상태
+2. 실제 사유가 있는데도 무조건 `NotApplicable_NoCall` 남발
+3. negative 케이스가 `applicable=false`만 보고 끝남 — helper까지 실제로 실행해야 한다
+4. 예외 삼킴 테스트인데 error 로그가 의도된 것임이 이름/Javadoc/로그에 드러나지 않음
+5. 같은 엔드포인트 흐름인데 fixture 없이 테스트마다 입력 구조를 흩어 씀
+6. CallTree와 실제 코드가 충돌하는데 독자적으로 대상을 제외하거나 추가
+
+피해야 할 이름 패턴:
+- 실제 사유가 있는데도 무조건 `NotApplicable_NoCall`
+- 운영코드에 없는 외부 조건을 helper에 추가한 이름
+- 실제로는 메서드가 호출되는데 `NoCall`로 끝나는 이름
+
+## 최종 체크리스트
+
+1. 외부 조건을 실제 호출자 코드에서 찾았는가
+2. 내부 조건을 대상 메서드 본문에서 찾았는가
+3. negative 케이스가 helper 실행까지 포함하는가
+4. 이름이 실제 사유를 드러내는가
+5. `[➡️ CALL]` 로그가 production method 직전에 있는가
+6. 내부 로직이 있으면 단계 로그가 있는가
+7. MainTest와 보조 문서까지 동기화했는가
+8. 필요도 낮음 판단이 있으면 테스트는 생성했고 메모도 남겼는가
+9. 같은 흐름을 여러 테스트가 공유하면 fixture/helper가 정리됐는가
+
+## Contract Audit 보고 형식
+
+Phase 2 완료 후 아래 형식으로 결과를 보고한다.
+
+```md
+## 입력 계약 확인
+- callTree 문서: `{calltree-path}`
+- entryFlow: `{entry-flow}`
+- completionUnit: `{completion-unit}`
+- mainTestClass: `{MainTestClass}`
+- fixtureStrategy: `{fixture-strategy}`
+
+## bundle 우선순위
+| bundle | family | priority | mainTestGroup | status | notes |
+|---|---|---|---|---|---|
+| `{bundle}` | `{family}` | `{priority}` | `{mainTestGroup}` | `{pending|done}` | `{note}` |
+
+## 산출물 계획
+- UnitTest 대상 클래스: `{class}`
+- MainTest: `{MainTestClass}`
+- fixture: `{fixture-path-or-none}`
+- 보조 문서: `{doc-path}`
+
+## 적용한 원본 코드 조건
+- [`{class}.java:{line}`]: `{external-condition-or-entry-guard}`
+- [`{class}.java:{line}`]: `{internal-branch-or-post-processing}`
+
+## 생성·갱신한 테스트 메서드
+- `{UnitTestClass}#{testMethod}` — callNode: `{callNode}`, 의도: `{why}`
+- `{MainTestClass}#{testNN_method}` — family: `{family}`
+
+## assertion 근거 매핑
+| testMethod | assertion 요약 | 근거 코드 |
+|---|---|---|
+| `{testMethod}` | `{assertion-summary}` | `{class}.java:{line}` |
+
+## 검증 결과
+- 명령: `{test-compile or run command}`
+- 결과: `{passed|failed|skipped}`
+- 메모: `{note}`
+
+## 필요도 낮음 판단 메모
+- 노드: `{callNode-or-none}`
+- 반영 위치: `{javadoc-or-doc-path}`
+- 메모: `{note}`
+
+## audit 메모
+- 비어 있는 critical bundle: `{bundle}`
+- 이번에 닫은 family: `{family-list}`
+- 다음 generation 후보: `{bundle-list}`
+```
 
 ## 완료 기준
 

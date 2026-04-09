@@ -214,8 +214,10 @@ branchType 값 수는 `/ct:calltreeTest`가 생성하는 `_Test` + `_NoCall` 쌍
 
 ### 1. `{entry-method}`
 
-{entry-method}()
+```text
+[TC:✅] {entry-method}()
 ├─ ...
+```
 
 ## `[TC:✅]`로 본 메서드
 - `{callNode}`

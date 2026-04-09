@@ -135,7 +135,14 @@ description: "저장소 초기화(init) 직후 core_project.md, core_code_style.
 - 환경 리소스 구조: {RUNTIME_RESOURCE_LAYOUT}
 
 ## 아키텍처 개요
-(mermaid flowchart)
+```mermaid
+flowchart TD
+    Scheduler[Scheduler / Entry] --> Job[Batch Job]
+    Job --> Service[Service Layer]
+    Service --> Mapper[MyBatis Mapper]
+    Mapper --> DB[(Primary/Secondary DB)]
+    Service --> External[External System]
+```
 
 ## 런타임 및 배포
 - 실행 방식: {RUNTIME_EXECUTION_MODE}
@@ -167,7 +174,9 @@ description: "저장소 초기화(init) 직후 core_project.md, core_code_style.
 {RUNTIME_SYSTEM_DEPENDENCIES_OVERVIEW}
 
 ## 코드베이스 구조 (ASCII Tree, 최소 3뎁스)
+```text
 {PROJECT_STRUCTURE_TREE_MIN_3_DEPTH_WITH_NOTES}
+```
 
 ## 모듈 맵
 | 영역 | 주요 패키지 | 핵심 클래스/잡 | 매퍼/리소스 | VO/DTO | 설명 |
@@ -198,7 +207,14 @@ description: "저장소 초기화(init) 직후 core_project.md, core_code_style.
 | {EXTERNAL_SYSTEM} | {EXTERNAL_INTERFACE} | {EXTERNAL_CALL_SITE} | {EXTERNAL_FAILURE_IMPACT} |
 
 ## 배치/요청 처리 흐름
-(mermaid flowchart)
+```mermaid
+flowchart LR
+    Trigger[Trigger/Schedule] --> Job[Job or Entry]
+    Job --> Service[Service]
+    Service --> Mapper[Mapper]
+    Mapper --> DB[(DB)]
+    Service --> External[External]
+```
 
 ## 운영 관점 체크포인트
 - 로그 경로/포맷: {LOGGING_PATH_AND_FORMAT}
@@ -258,10 +274,12 @@ description: "저장소 초기화(init) 직후 core_project.md, core_code_style.
 {PROJECT_DTO_VO_CONVENTIONS}
 
 ### 권장 폴더 구조
+```text
 vo/       # 외부 API 요청/응답 또는 조회 중심 모델
 dto/      # 내부 데이터 전달 모델
 service/  # 비즈니스 로직
 mapper/   # DB 접근 인터페이스
+```
 
 ## 레이어별 메서드 네이밍
 
@@ -289,6 +307,12 @@ mapper/   # DB 접근 인터페이스
 - 권장 Tag: `START`, `SUCCESS`, `FAIL`, `VALIDATE`, `EXTERNAL`
 - 배치 공통 식별자: `requestDate`, `runId` 또는 `uuid`
 - 도메인 식별자: {PROJECT_DOMAIN_LOG_IDENTIFIERS}
+
+예시:
+```java
+log.info("[{}][START] 배치 시작 - requestDate: {}, runId: {}", jobName, requestDate, runId);
+log.error("[{}][FAIL] 외부 연동 실패 - requestDate: {}, uuid: {}", jobName, requestDate, uuid, e);
+```
 
 ## 민감정보 로깅 금지
 - 마스킹 필수: {PROJECT_MASKING_TARGETS}
@@ -344,12 +368,30 @@ mapper/   # DB 접근 인터페이스
 - 프로젝트 Java 대상 버전: `{PROJECT_JAVA_VERSION}`
 - 기준 근거: {PROJECT_JAVA_VERSION_SOURCE}
 - Maven CLI 검증 시 JAVA_HOME 경로: `{PROJECT_JAVA_HOME}`
+- PowerShell 예시:
+```bash
+$env:JAVA_HOME="{PROJECT_JAVA_HOME}"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+mvn -version
+```
+- PowerShell 빌드 예시(UTF-8 강제):
+```bash
+$env:JAVA_HOME="{PROJECT_JAVA_HOME}"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+mvn clean package -Dfile.encoding=UTF-8 -Dproject.build.sourceEncoding=UTF-8
+```
 
 ### 기본 패키징
+```bash
 mvn clean package -Dfile.encoding=UTF-8 -Dproject.build.sourceEncoding=UTF-8
+```
+- 기본 프로필과 산출물은 프로젝트 기준으로 명시한다. (예: `ultron`, `target/ROOT.war`)
+- 옵션 없이 `mvn clean package` 실행 시 인코딩 오류가 발생할 수 있으면 주의 문구를 함께 기재한다.
 
 ### 프로필 지정 패키징
+```bash
 mvn clean package -P {PROFILE_NAME} -Dspring.profiles.active={PROFILE_NAME}
+```
 
 ## 저장소/의존성 관리
 {PROJECT_REPOSITORY_AND_DEPENDENCY_GUIDE}
