@@ -11,3 +11,7 @@
 !install.ps1
 !install.sh
 !README.md
+!agents/
+!agents/**
+!skills/
+!skills/**
