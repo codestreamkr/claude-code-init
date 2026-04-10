@@ -111,7 +111,7 @@ public void setUp() {
 ### 적용 조건
 - 여러 테스트가 같은 header/body/payment/meta 구조를 공유할 때
 - call-site 분기가 입력 JSON/Map에 의해 결정될 때
-- `fixtureGroup`에 노드가 2개 이상이면 shared fixture 기본 적용
+- 같은 `fixtureGroup`(§테스트 전략 결정 규칙)에 노드가 2개 이상이면 shared fixture 기본 적용
 
 ### fixtureStrategy 해석
 - `shared-request`: 공통 request fixture를 먼저 만들고, helper는 꼭 필요한 최소 범위만 둔다.
@@ -187,22 +187,66 @@ log.info("[DOMAIN_TEST][TARGET_METHOD][➡️ CALL] service.targetMethod(arg1={}
 8. **ArgumentCaptor 판단**: mapping/조립 계열이면 캡처 기반 검증, 단순 위임이면 매처 허용. 애매하면 캡처 사용.
 9. **fixture 사용 확인**: shared fixture가 존재하는 흐름이면 base-request.json에서 파생되었는가
 
+## 테스트 전략 결정 규칙
+
+CallTree 문서에는 분석 결과만 있고, 테스트 전략은 이 스킬이 아래 규칙으로 결정한다.
+각 규칙에는 우선순위가 있으며, 충돌 시 상위 규칙이 이긴다.
+
+### 1. mainTestClass
+
+1. 기존 `*MainTest.java`가 있으면 그 파일을 우선 사용한다.
+2. 없으면 엔트리포인트 메서드의 소속 클래스 기준으로 `{RootClassName}MainTest`를 만든다.
+3. Controller가 단순 위임이어도 MainTest 이름은 엔트리포인트 기준으로 유지한다.
+4. 후보가 둘 이상이면 기존 Javadoc, `testNN_*` 구성, 호출 대상 일치율이 가장 높은 파일을 택한다.
+
+우선순위: **기존 파일 > 명명 규칙**
+
+### 2. fixtureStrategy
+
+1. 기존 `base-request.json`이 있으면 `shared-request`로 본다.
+2. 노드 2개 이상이 같은 요청 JSON 골격을 공유하면 `shared-request`.
+3. VO/Map 공통 빌더나 helper 메서드 재사용만 필요하면 `shared-helper`.
+4. 노드마다 입력 구조가 실질적으로 다르면 `none`.
+
+우선순위: **기존 fixture > 입력 구조 공유도**
+
+**입력 구조 동일의 기준:** 같은 `base-request.json` 하나에서 두 노드의 입력을 모두 파생할 수 있으면 동일. 별도 fixture 파일이 필요하면 다름.
+
+### 3. fixtureGroup
+
+1. 기본값은 `bundle`과 동일하게 시작한다.
+2. 같은 bundle 안에서도 입력 구조가 다르면 그룹을 분리한다.
+3. 다른 bundle이어도 같은 request fixture를 그대로 공유하면 같은 그룹으로 묶는다.
+
+우선순위: **입력 구조 일치 > bundle 이름**
+
+### 4. mainTestGroup
+
+1. 같은 `bundle`은 같은 `testNN_*` 묶음으로 둔다.
+2. 한 bundle 안에 성격이 완전히 다른 노드가 섞이면 `family` 기준으로 분리한다.
+3. 새 그룹 번호는 기존 MainTest의 마지막 `testNN_*` 다음 번호를 쓴다.
+
+우선순위: **bundle > family > source order**
+
 ## 기본 워크플로우
 
 ### Phase 0: 대상 목록 생성 (필수, 최초 1회)
 
-1. CallTree에서 아래 순서로 읽는다:
-   - `테스트 생성 계약` → 완료 단위와 우선순위 결정
-   - `테스트 관리 노드` → 대상 노드 목록 확인
+1. CallTree에서 아래 섹션을 제목 기준으로 찾아 읽는다:
+   - `[TC:✅] 노드 요약` → 대상 노드 목록과 분석 속성 확인
+     (읽는 필드: nodeId, callNode, layer, family, bundle, branchType, priority)
    - `메서드별 호출 트리` → 호출 흐름 파악
-2. 계약 섹션이 없으면 `[TC:✅]` 기준 fallback으로 진행하되, 범위 판단이 약해질 수 있음을 짧게 알린다.
+   - `특이사항` → 분석 시 발견된 주의 사항 확인
+   `[TC:✅] 노드 요약`이 없으면 트리의 `[TC:✅]` 표기를 기준으로 fallback 진행하되,
+   범위 판단이 약해질 수 있음을 짧게 알린다.
+2. **테스트 전략 결정** — §테스트 전략 결정 규칙에 따라 mainTestClass, fixtureStrategy, fixtureGroup, mainTestGroup을 결정한다.
 3. 기존 테스트/관련 소스/문서 위치를 병렬 수집한다.
-4. **기존 MainTest 탐색 및 계약 대조:**
+4. **기존 MainTest 탐색:**
    - 대상 엔트리포인트에 대응하는 기존 `*MainTest.java`를 검색한다 (파일명, 클래스 Javadoc, `@Test` 구성으로 판별).
-   - 계약의 `mainTestClass`와 기존 MainTest 파일명이 다르면:
-     - **기존 MainTest가 존재하면 기존 파일을 갱신 대상으로 확정한다.** 계약 클래스명으로 신규 생성하지 않는다.
-     - 불일치 사실을 사용자에게 알린다: `"계약 mainTestClass={계약명} ≠ 기존={파일명} → 기존 파일 갱신으로 진행"`
-   - 기존 MainTest가 없을 때만 계약의 `mainTestClass` 이름으로 신규 생성한다.
+   - 결정한 `mainTestClass`와 기존 MainTest 파일명이 다르면:
+     - **기존 MainTest가 존재하면 기존 파일을 갱신 대상으로 확정한다.** 결정한 이름으로 신규 생성하지 않는다.
+     - 불일치 사실을 사용자에게 알린다: `"mainTestClass={결정명} ≠ 기존={파일명} → 기존 파일 갱신으로 진행"`
+   - 기존 MainTest가 없을 때만 결정한 `mainTestClass` 이름으로 신규 생성한다.
 5. **대상 목록을 생성한다:**
    - `[TC:✅]` 전체 노드를 나열한다
    - **Controller 위임 판별**: 각 노드의 호출자가 Controller이면 Controller 코드를 확인한다. 단순 위임이면 `대응 UnitTest`를 `*ServiceUnitTest`로 매핑한다. Controller 고유 로직이 있을 때만 `*ControllerUnitTest`로 매핑한다.
@@ -212,8 +256,8 @@ log.info("[DOMAIN_TEST][TARGET_METHOD][➡️ CALL] service.targetMethod(arg1={}
    - `new`/`supplement` 노드에만 순번(M01, M02, ...)을 부여
    - 노드별로 `nodeId`, `callNode`, `대상 클래스`, `bundle`, `priority`, `대응 UnitTest`, `상태`를 표로 정리
    - 같은 UnitTest 파일의 노드는 연속 순번으로 배치
-5. **목록을 사용자에게 출력하고 즉시 Phase 1로 진행한다.**
-6. fixture 설계: 같은 `fixtureGroup`에 노드가 2개 이상이면 shared fixture 기본 적용.
+6. **목록을 사용자에게 출력하고 즉시 Phase 1로 진행한다.**
+7. fixture 설계: 같은 `fixtureGroup`에 노드가 2개 이상이면 shared fixture 기본 적용.
 
 ### Phase 1: 노드별 처리 (반복)
 

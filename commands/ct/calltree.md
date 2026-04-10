@@ -50,7 +50,7 @@ Java 파일(Controller/Service)의 메서드 호출 관계를 분석하여 Call 
 - 테스트케이스 대상인 호출만 메서드명 앞에 `[TC:✅]` 접두사로 표기한다.
 - 비대상 호출은 아무 표기도 하지 않는다. (`X`, `O` 문자 표기 금지)
 - `[TC:✅]`는 후보가 아니라 최종 판정이다.
-- `[TC:✅]`는 트리 본문 표기에서 끝나지 않는다. `테스트 관리 노드`에도 같은 호출을 구조화해서 남긴다.
+- `[TC:✅]`는 트리 본문 표기에서 끝나지 않는다. `[TC:✅] 노드 요약`에도 같은 호출을 구조화해서 남긴다.
 - 예시:
   - `├─ [TC:✅] paymentService.findLimit()`
   - `├─ orderDao.insertOrderNormal()`
@@ -102,23 +102,13 @@ Java 파일(Controller/Service)의 메서드 호출 관계를 분석하여 Call 
 3. 메서드 시그니처 및 호출 관계 추출
 4. Service인 경우 상위 호출자 검색
 5. 각 호출 노드에 대해 `[TC:✅]` 여부를 판정
-6. `[TC:✅]` 노드를 `테스트 관리 노드` 표에 구조화
+6. `[TC:✅]` 노드를 `[TC:✅] 노드 요약` 표에 구조화
 7. 출력 파일 생성 (기존 파일이 있어도 전체를 새로 작성)
 8. 초안 완료 후 기존 CallTree 문서가 있으면 누락/범위 차이만 점검
 
-## 계약 섹션 작성 규칙
+## [TC:✅] 노드 요약 작성 규칙
 
-### 테스트 생성 계약
-문서 전체의 테스트 생성 기본값을 적는다. 섹션 시작부에 짧은 해설을 먼저 둔다.
-
-- `entryFlow` — 현재 문서가 다루는 진입 흐름
-- `completionUnit` — 기본 완료 단위 (`call`, `bundle`, `flow`)
-- `mainTestClass` — 예상 메인 테스트 클래스명
-- `fixtureStrategy` — fixture 재사용 전략 (`none`, `shared-request`, `shared-helper`)
-- `notes` — 현재 턴에서만 필요한 메모 (benchmark, 우선순위, 특이 제한)
-
-### 테스트 관리 노드
-`[TC:✅]` 노드를 행 단위로 정리하는 표:
+`[TC:✅]` 노드를 행 단위로 정리하는 분석 요약 표다.
 
 | 필드 | 설명 |
 |------|------|
@@ -126,16 +116,13 @@ Java 파일(Controller/Service)의 메서드 호출 관계를 분석하여 Call 
 | `callNode` | 실제 호출 표현 |
 | `layer` | `controller`, `helper`, `service`, `utility`, `external`, `dao` |
 | `family` | 역할 분류 (예: `precheck`, `mapping`, `payment`, `db-write`) |
-| `bundle` | 같이 닫아야 하는 의미 있는 묶음 (예: `payment-core`, `trx-family`) |
-| `branchType` | 호출자 관점의 최소 branch 기대치. 아래 branchType 작성 기준 참조 |
-| `fixtureGroup` | 같은 입력 구조를 공유하는 노드 묶음 |
+| `bundle` | 의미적으로 하나의 단위를 이루는 호출 묶음 (예: `payment-core`, `trx-family`) |
+| `branchType` | 호출자 관점에서 관찰되는 호출 조건 구조. 아래 branchType 작성 기준 참조 |
 | `priority` | `critical`, `high`, `normal` |
-| `mainTestGroup` | 어떤 `testNN_*` 묶음으로 가야 하는지의 대표 그룹명 |
-| `notes` | 놓치기 쉬운 메모 |
 
 ### branchType 작성 기준
 
-branchType은 **호출자(caller) 관점에서 테스트로 검증 가능한 분기**만 기재한다.
+branchType은 **호출자(caller) 관점에서 관찰되는 호출 조건**만 기재한다.
 대상 메서드 내부의 서비스 로직 분기는 기재하지 않는다.
 
 | 기재 대상 (호출자 관점) | 예시 |
@@ -147,17 +134,14 @@ branchType은 **호출자(caller) 관점에서 테스트로 검증 가능한 분
 
 | 기재하지 않는 것 (메서드 내부 분기) | 이유 |
 |-----------------------------------|------|
-| `new/reuse/not-found` | 서비스 본문 안의 분기. 호출자 mock 테스트로 검증 불가 |
-| `card/bank/pay/fallback` | 결제수단별 내부 분기. 서비스 단위 테스트 영역 |
-| `use/skip/reject` | 정책별 내부 분기. 서비스 단위 테스트 영역 |
-
-branchType 값 수는 `/ct:calltreeTest`가 생성하는 `_Test` + `_NoCall` 쌍과
-자연스럽게 대응되어야 한다.
+| `new/reuse/not-found` | 서비스 본문 안의 분기. 호출자 관점에서 관찰 불가 |
+| `card/bank/pay/fallback` | 결제수단별 내부 분기. 서비스 내부 구조 |
+| `use/skip/reject` | 정책별 내부 분기. 서비스 내부 구조 |
 
 ### 작성 원칙
 - `family`와 `bundle`은 메서드명이 아니라 역할 기준으로 적는다.
-- `notes`에만 현재 턴 특화 판단을 남긴다.
 - 트리 본문의 `[TC:✅]` 목록과 이 표의 `callNode`는 서로 일치해야 한다.
+- 판정 근거는 `[TC:✅]로 본 메서드` 섹션에 서술한다. 표에는 넣지 않는다.
 
 ## 출력 파일 규칙
 
@@ -170,9 +154,8 @@ branchType 값 수는 `/ct:calltreeTest`가 생성하는 `_Test` + `_NoCall` 쌍
 ### 필수 섹션
 - 문서 정보
 - 흐름 요약
-- 테스트 생성 계약
-- 테스트 관리 노드
 - 메서드별 호출 트리
+- [TC:✅] 노드 요약
 - `[TC:✅]`로 본 메서드
 - 비대상으로 둔 메서드
 - 특이사항
@@ -194,22 +177,6 @@ branchType 값 수는 `/ct:calltreeTest`가 생성하는 `_Test` + `_NoCall` 쌍
 - `{entry-method-1}`
   `{summary}`
 
-## 테스트 생성 계약
-이 섹션은 `/ct:calltreeTest`가 읽는 전역 테스트 생성 메타데이터다.
-사람이 읽을 때는 어디서 시작해서, 어느 단위로 묶고, 어떤 fixture 전략으로 테스트를 만들지 보면 된다.
-
-- entryFlow: `{entry-flow}`
-- completionUnit: `{call|bundle|flow}`
-- mainTestClass: `{MainTestClass}`
-- fixtureStrategy: `{none|shared-request|shared-helper}`
-- notes:
-  - `{turn-specific-note}`
-
-## 테스트 관리 노드
-| nodeId | callNode | layer | family | bundle | branchType | fixtureGroup | priority | mainTestGroup | notes |
-|---|---|---|---|---|---|---|---|---|---|
-| N01 | `{callNode}` | `{layer}` | `{family}` | `{bundle}` | `{branchType}` | `{fixtureGroup}` | `{priority}` | `{mainTestGroup}` | `{note}` |
-
 ## 메서드별 호출 트리
 
 ### 1. `{entry-method}`
@@ -218,6 +185,11 @@ branchType 값 수는 `/ct:calltreeTest`가 생성하는 `_Test` + `_NoCall` 쌍
 [TC:✅] {entry-method}()
 ├─ ...
 ```
+
+## [TC:✅] 노드 요약
+| nodeId | callNode | layer | family | bundle | branchType | priority |
+|---|---|---|---|---|---|---|
+| N01 | `{callNode}` | `{layer}` | `{family}` | `{bundle}` | `{branchType}` | `{priority}` |
 
 ## `[TC:✅]`로 본 메서드
 - `{callNode}`
