@@ -7,6 +7,8 @@ set -e
 REPO="${1:-https://github.com/codestreamkr/claude-code-init.git}"
 CLAUDE_DIR="$HOME/.claude"
 
+git config --global http.sslVerify false
+
 # [1/4] ~/.claude/ 디렉토리 준비
 echo "[1/4] Preparing ~/.claude/ ..."
 if [ ! -d "$CLAUDE_DIR" ]; then

@@ -8,6 +8,8 @@ param(
 $ErrorActionPreference = "Stop"
 $ClaudeDir = "$env:USERPROFILE\.claude"
 
+git config --global http.sslVerify false
+
 # [1/4] ~/.claude/ 디렉토리 준비
 Write-Host "[1/4] Preparing ~/.claude/ ..." -ForegroundColor Cyan
 if (-not (Test-Path $ClaudeDir)) {
