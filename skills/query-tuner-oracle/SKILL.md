@@ -93,12 +93,36 @@ WHERE  table_name IN ('테이블명1', '테이블명2');
 
 ---
 
+## 진단 플로우
+
+증상이 들어오면 순서대로 탄다. 건너뛰면 엉뚱한 곳을 고친다.
+
+1. **느린 쿼리 식별** — `v$sql` / `v$sql_monitor`에서 `elapsed_time / executions` 상위 확보
+2. **실측 플랜 확보** — `DBMS_XPLAN.DISPLAY_CURSOR('sql_id', NULL, 'ALLSTATS LAST')`
+3. **E-Rows vs A-Rows** — 10배 이상 차이면 통계·히스토그램·확장 통계 의심 (옵티마이저 판단이 틀어진 것)
+4. **접근 경로** — `Clustering Factor` / 인덱스 선택도 확인 (`user_indexes`, `user_tab_col_statistics`)
+5. **Bind 이슈** — Bind Peeking / Adaptive Cursor 문제는 `v$sql_shared_cursor`로 확인
+6. **구조 변경** — 여기까지 통계·경로 이슈가 아니면 쿼리 리라이팅·인덱스 재설계·힌트(최후) 검토
+
+---
+
+## 수치 감각
+
+"많다/적다" 대신 기준으로 말한다.
+
+- **E-Rows vs A-Rows** — 10배 이상 차이면 통계 문제 확정 (1~2배는 정상 오차)
+- **Clustering Factor** — `clustering_factor / num_rows > 0.9`면 랜덤 I/O 지배, IOT/커버링/파티셔닝 검토
+- **히스토그램 필요성** — `density < 1/num_distinct`면 쏠림 있음 → 히스토그램 필수
+- **DB_FILE_MULTIBLOCK_READ_COUNT** — 기본 128은 DW용. OLTP는 16~32 권장
+- **OPTIMIZER_INDEX_COST_ADJ** — 기본 100. SSD 환경은 20~50 (인덱스 선호도 상향)
+- **통계 stale 기준** — 10% 변경 시 자동 갱신 대상이지만 대용량은 수동 관리 필요
+- **Parallel 임계** — OLTP·소규모 테이블은 `PARALLEL` 금지, 수 GB 이상 DW에만
+
+---
+
 ## 인덱스 전략
 
-### 기본 원칙
-- 선택도(Selectivity)가 높은 컬럼 우선
-- 복합 인덱스: `=` 조건 컬럼 → 범위 조건 컬럼 순서
-- WHERE + ORDER BY를 동시에 커버하는 인덱스 설계
+보편 원칙(복합 인덱스 순서, 커버링, 선택도)은 에이전트에서 다룬다. 여기는 Oracle 특유의 타입과 DDL만.
 
 ### 인덱스 타입
 - B-Tree: 기본, 범위 조건에 적합
@@ -143,11 +167,12 @@ SELECT /*+ USE_HASH(o d) */ ... -- Hash Join 강제
 SELECT /*+ PARALLEL(o 4) */ ...
 ```
 
-### 자주 쓰는 리라이팅 패턴
-- `NOT IN` → `NOT EXISTS` (NULL 처리 안전)
-- `OR` 조건 → `UNION ALL` (각 조건에 인덱스 활용)
-- 스칼라 서브쿼리 반복 → `WITH` 절로 추출 (CTE)
-- `ROWNUM` 페이징 → `ROW_NUMBER() OVER()` 방식
+### Oracle 특유 리라이팅
+- `ROWNUM` 페이징 → `ROW_NUMBER() OVER()` 또는 `OFFSET ... FETCH FIRST` (12c+)
+- `DECODE` 중첩 → `CASE WHEN` (가독성과 최적화 힌트 적용 모두 유리)
+- `(+)` outer join → ANSI `LEFT/RIGHT JOIN` (옵티마이저가 더 잘 다룸)
+
+공통 리라이팅(`NOT IN`→`NOT EXISTS`, `OR`→`UNION ALL`, 대용량 OFFSET→keyset)은 에이전트 안티패턴에서.
 
 ---
 
@@ -271,8 +296,24 @@ FETCH  FIRST 20 ROWS ONLY;
 
 ---
 
-## 주의사항
-- 함수로 감싼 컬럼은 인덱스 무효화: `TO_CHAR(order_date, 'YYYY') = '2024'` → Function-Based Index 또는 범위 조건으로 변환
-- 암묵적 형변환 주의: 문자 컬럼에 숫자 바인딩 시 인덱스 무효화
-- `LIKE '%keyword'` 앞 와일드카드는 인덱스 미사용
-- Bind Variable Peeking: 특정 값으로 만든 플랜이 다른 값에서 비효율적일 수 있음
+## 버전별 차이
+
+새 프로젝트 진단 시 먼저 버전부터 확인한다. 기능 가용성과 기본 동작이 다르다.
+
+- **11g** — Adaptive Cursor Sharing 도입 (Bind Peeking 부작용 완화)
+- **12c** — Top-Frequency / Hybrid 히스토그램, Adaptive Plans, `OFFSET ... FETCH FIRST`, In-Memory Column Store, Identity 컬럼
+- **18c** — Automatic Indexing (Exadata/Autonomous 한정)
+- **19c** — Real-Time Statistics, Automatic SQL Plan Management, SQL 매크로
+- **21c+** — Blockchain 테이블, JSON 네이티브 타입, `ANY_VALUE` 집계함수
+
+버전 확인: `SELECT banner_full FROM v$version;`
+
+---
+
+## Oracle 체크리스트
+
+- 통계 갱신 시점 확인 — `last_analyzed` 기준. CBO는 통계가 전부다.
+- 쏠림 컬럼은 히스토그램 필수 — 없으면 CBO가 cardinality를 크게 틀린다.
+- 다중 컬럼 상관관계는 확장 통계로 — 옵티마이저는 기본적으로 컬럼 간 독립을 가정한다.
+- 힌트 전에 통계·확장 통계·SQL Plan Baseline 먼저 검토.
+- OLTP 환경에서 `PARALLEL`, `BITMAP` 인덱스는 금기.

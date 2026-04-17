@@ -104,12 +104,32 @@ SELECT COUNT(*) FROM 테이블명;
 
 ---
 
+## 진단 플로우
+
+1. **느린 쿼리 식별** — `performance_schema.events_statements_summary_by_digest`에서 `sum_timer_wait` 상위
+2. **실측 플랜** — `EXPLAIN ANALYZE` (8.0+) 또는 `EXPLAIN FORMAT=TREE`
+3. **type 컬럼 확인** — `ALL` / `index` → 인덱스 부재, `Using filesort` / `Using temporary` → 쿼리 구조 이슈
+4. **rows 추정 오차** — 예상치와 실제 큰 차이 → `ANALYZE TABLE` + 히스토그램 검토
+5. **Index Merge 탐지** — `Using union` / `Using intersect` 보이면 복합 인덱스 1개로 재설계
+6. **Buffer Pool 히트율** — 낮으면 메모리 부족 또는 워크셋 과다
+
+---
+
+## 수치 감각
+
+- **type 컬럼 목표** — `ref` 이상이 기본선. `range`까지는 허용, `index`·`ALL`은 문제
+- **Buffer Pool 히트율** — 99% 미만이면 경고 신호 (OLTP 기준)
+- **`innodb_buffer_pool_size`** — 일반적으로 서버 메모리의 50~70%
+- **`innodb_stats_persistent_sample_pages`** — 기본 20. VLDB는 200~2000으로 올려야 추정 정확
+- **히스토그램 버킷** — 기본 100. 쏠림 심하면 1024 (최대)
+- **`tmp_table_size` / `max_heap_table_size`** — 작으면 임시 테이블이 디스크로 — 최소 64MB 권장
+- **Prefix 인덱스 길이** — 카디널리티가 전체의 80%에 도달하는 지점이 최소선
+
+---
+
 ## 인덱스 전략
 
-### 기본 원칙
-- 복합 인덱스: `=` → `IN` → 범위 조건 순서
-- 커버링 인덱스: SELECT 컬럼까지 인덱스에 포함 → `Using index` 달성
-- 카디널리티 낮은 컬럼(status 등)은 복합 인덱스의 후행 컬럼으로
+보편 원칙(복합 인덱스 순서, 커버링, 선택도)은 에이전트에서 다룬다. 여기는 MySQL/InnoDB 특유의 것만.
 
 ### 인덱스 타입
 - B-Tree: 기본 (InnoDB 기본값)
@@ -148,11 +168,12 @@ SELECT * FROM orders IGNORE INDEX (idx_old)
 WHERE status = 'COMPLETE';
 ```
 
-### 자주 쓰는 리라이팅 패턴
-- `NOT IN` → `LEFT JOIN ... IS NULL` (NULL 안전, 성능 향상)
-- `OR` 조건 → `UNION ALL`
-- `SELECT *` → 필요한 컬럼만 선택 (커버링 인덱스 활용)
-- 대용량 페이징 `OFFSET` → 커서 기반 페이징으로 전환
+### MySQL 특유 리라이팅
+- 5.7 이하 `IN (SELECT ...)` → `INNER JOIN` (서브쿼리 비최적화 회피)
+- `NOT IN` → `LEFT JOIN ... IS NULL` (MySQL은 `NOT EXISTS`보다 이쪽이 빠른 경우가 많다)
+- 커버링 인덱스 적극 활용 — InnoDB는 보조 인덱스 → PK → 힙 접근 구조라 커버링 이득이 특히 크다
+
+공통 리라이팅(`OR`→`UNION ALL`, 대용량 OFFSET→keyset)은 에이전트 안티패턴에서.
 
 ---
 
@@ -287,9 +308,24 @@ SELECT (1 - (
 
 ---
 
-## 주의사항
-- 함수로 감싼 컬럼 인덱스 무효화: `YEAR(order_date) = 2024` → 범위 조건으로 변환
-- 문자열 컬럼에 숫자 비교 시 묵시적 형변환으로 인덱스 무효화
-- `LIKE '%keyword'` 앞 와일드카드 인덱스 미사용
-- InnoDB 클러스터드 인덱스(PK) 설계가 전체 성능에 영향
-- `ALTER TABLE` 중 테이블 락 발생 가능 → 피크 시간 외 적용 또는 `ALGORITHM=INPLACE` 사용
+## 버전별 차이
+
+- **5.6** — ICP, MRR 도입, 온라인 DDL (`ALGORITHM=INPLACE`)
+- **5.7** — Generated Columns, 네이티브 JSON 타입, `sys` 스키마, 파생 테이블 merge 개선
+- **8.0** — 히스토그램, Window Functions, CTE, Invisible/Descending Index, Hash Join (8.0.18+), 기본 콜레이션 `utf8mb4_0900_ai_ci`
+- **8.0.31+** — Lateral derived table, `EXPLAIN FORMAT=JSON` 확장
+- **8.4 LTS** — GROUP BY 기본 동작(sort 제거) 변경, 기본 인증 방식 변경
+- **MariaDB 분기 (10.x~11.x)** — 옵티마이저 힌트(`STRAIGHT_JOIN`, `Optimizer Hints`) 지원 범위가 다름, `THREAD_POOL` 내장, System-versioned 테이블 네이티브 지원. MySQL 문법이 그대로 안 먹는 경우 존재
+
+버전 확인: `SELECT VERSION();`
+
+---
+
+## MySQL 체크리스트
+
+- PK 설계가 전체 성능에 영향 — InnoDB 클러스터드 인덱스 구조상 PK는 짧고 순차적으로.
+- UUID를 PK로 쓰면 페이지 분할·단편화 — 순차 UUID(v7) 또는 별도 surrogate key 검토.
+- 콜레이션·문자셋 불일치 JOIN은 인덱스 무효화 — `utf8mb4_0900_ai_ci` 같은 미묘한 차이 주의.
+- `ALTER TABLE`은 피크 시간 외 또는 `ALGORITHM=INPLACE, LOCK=NONE` 옵션으로.
+- `EXPLAIN`에 `Using union`/`intersect` 보이면 Index Merge — 복합 인덱스 1개로 재설계 검토.
+- 8.0 미만은 히스토그램 없음 — 쏠림 데이터는 카디널리티 추정이 자주 틀린다.

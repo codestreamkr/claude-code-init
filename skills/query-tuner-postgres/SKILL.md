@@ -113,13 +113,35 @@ SELECT COUNT(*) FROM 테이블명;
 
 ---
 
+## 진단 플로우
+
+1. **느린 쿼리 식별** — `pg_stat_statements.total_exec_time` 상위 확보 (`mean_exec_time`도 병행)
+2. **실측 플랜** — `EXPLAIN (ANALYZE, BUFFERS)` 로 I/O까지 확인
+3. **rows 추정 오차** — 예상/실제 큰 차이 → `ANALYZE`, 다중 컬럼이면 `CREATE STATISTICS`
+4. **dead tuple 점검** — `pg_stat_user_tables`에서 `n_dead_tup / n_live_tup` 확인, 높으면 `VACUUM`
+5. **Buffer 분석** — `shared read` 큼 → 캐시 부족 또는 `random_page_cost` 설정 이슈 (SSD는 낮춰야 함)
+6. **JIT 오버헤드 확인** — 짧은 OLTP 쿼리면 `SET jit = off` 테스트
+
+---
+
+## 수치 감각
+
+- **dead tuple 비율** — `n_dead_tup / n_live_tup > 0.2` → VACUUM 필요 (인덱스 스캔 비용 증가)
+- **correlation** — `< 0.1`이면 인덱스 스캔 비효율, BRIN은 무의미 (BRIN은 ≈ 1.0 필요)
+- **`random_page_cost`** — HDD 4.0(기본), SSD 1.1~1.5, NVMe 1.0
+- **`effective_cache_size`** — 서버 메모리의 50~75%
+- **`work_mem`** — 기본 4MB. 쿼리당 사용량 × 동시 세션 = 총 메모리 소비. 함부로 크게 올리면 OOM
+- **`default_statistics_target`** — 기본 100. 쏠림 컬럼은 `ALTER COLUMN ... SET STATISTICS 1000`
+- **`mean_exec_time`** — 100ms 초과 쿼리가 진단 1차 대상
+- **autovacuum scale_factor** — 기본 0.1. 대용량 테이블은 테이블별로 0.01~0.05로 낮춰야 제때 돈다
+
+---
+
 ## 인덱스 전략
 
-### 기본 원칙
-- 통계 정보가 중요: `ANALYZE` 실행 여부 먼저 확인
-- 부분 인덱스(Partial Index)로 불필요한 행 제외
-- 표현식 인덱스로 함수 조건 커버
-- `correlation` 값이 낮은 컬럼은 인덱스 효율이 떨어질 수 있음
+보편 원칙(복합 인덱스 순서, 커버링, 선택도)은 에이전트에서 다룬다. 여기는 PostgreSQL 특유의 타입·DDL만.
+
+PostgreSQL 특유 포인트: 부분 인덱스(Partial Index)와 표현식 인덱스는 기본기다. `correlation` 값이 낮으면 Index Scan보다 Seq Scan이 빠를 수 있다.
 
 ### 인덱스 타입
 - B-Tree: 기본, 범위/정렬에 적합
@@ -166,10 +188,12 @@ RESET enable_seqscan;
 RESET work_mem;
 ```
 
-### 자주 쓰는 리라이팅 패턴
-- 반복 서브쿼리 → `WITH` 절(CTE)로 추출
-- `NOT IN` → `NOT EXISTS` 또는 `LEFT JOIN ... IS NULL`
-- 대용량 페이징 `OFFSET` → keyset 페이징으로 전환
+### PostgreSQL 특유 리라이팅
+- `WITH` 절은 12+ 이전 버전에서 optimization fence (inline되지 않음) — 11 이하에선 서브쿼리가 더 나을 수 있다
+- JSONB 조회는 `->>` 대신 `@>` + GIN 인덱스 활용
+- `DISTINCT ON` 은 그룹당 최신 레코드 추출에 효과적 (표준 SQL엔 없음)
+
+공통 리라이팅(`NOT IN`→`NOT EXISTS`, 대용량 OFFSET→keyset)은 에이전트 안티패턴에서.
 
 ---
 
@@ -351,10 +375,27 @@ ORDER  BY pg_relation_size(indexrelid) DESC;
 
 ---
 
-## 주의사항
-- 통계가 오래됐으면 `ANALYZE table_name` 먼저 실행
-- dead tuple이 많으면 `VACUUM ANALYZE` 먼저
-- 표현식 인덱스는 쿼리의 표현식과 정확히 일치해야 사용됨
-- `LIKE 'keyword%'`는 B-Tree 사용 가능, `'%keyword'`는 불가
-- `CREATE INDEX CONCURRENTLY`는 트랜잭션 블록 안에서 실행 불가
-- PostgreSQL은 힌트가 없어 `enable_*` 설정으로 플래너를 유도함 → 영구 변경 금지, 세션 단위로만 사용
+## 버전별 차이
+
+- **10** — 논리 복제, 다중 컬럼 통계(`CREATE STATISTICS`), 병렬 index scan, `IDENTITY` 컬럼
+- **11** — JIT, 파티셔닝 대폭 개선, 커버링 인덱스(`INCLUDE`), 해시 파티션
+- **12** — CTE 자동 inline (`MATERIALIZED` 명시 시만 fence), B-Tree 중복 제거, Generated Columns
+- **13** — 점진적 정렬(incremental sort), 병렬 VACUUM, B-Tree 중복 제거 확장
+- **14** — 다중 컬럼 MCV 통계, 병렬 `REINDEX CONCURRENTLY`, 기본 인증 SCRAM
+- **15** — `MERGE` 구문, 파티션 개선, 논리 복제에 컬럼 필터
+- **16** — 병렬 hash join 개선, 논리 복제에서 병렬 적용
+- **17** — incremental backup, VACUUM 메모리 개선, `json_table`
+
+버전 확인: `SELECT version();`
+
+---
+
+## PostgreSQL 체크리스트
+
+- 통계·VACUUM 상태 먼저 — `last_analyze`·`n_dead_tup` 확인 없이 플랜을 논하지 않는다.
+- SSD 환경이면 `random_page_cost`를 1.1~1.5로 조정 — 기본값 4.0은 HDD 시절 설정이다.
+- 표현식 인덱스는 쿼리 표현식과 정확히 일치해야 사용 — 작은 차이로 무용지물이 된다.
+- 다중 컬럼 상관관계는 `CREATE STATISTICS` 필수 — 기본은 컬럼 독립 가정.
+- `CREATE INDEX CONCURRENTLY`는 트랜잭션 블록 밖에서만.
+- 힌트가 없다 — `enable_*`은 세션 단위 디버깅용, 영구 설정 금지.
+- Prepared Statement는 6회차부터 generic plan으로 전환 — 쏠림 컬럼에선 `plan_cache_mode = force_custom_plan` 검토.

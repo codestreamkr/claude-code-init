@@ -1,9 +1,51 @@
 ---
 name: spring-jpa
-description: Spring Data JPA 쿼리 패턴 전문 지식. Entity 기본 가이드, Query Methods, QueryDSL, @Query, N+1 해결, 페이징, Projection을 다룬다.
+description: Spring Data JPA 쿼리 패턴 전문 지식. Query Methods·QueryDSL·@Query·N+1·페이징·Projection 구현 패턴과 Entity 최소 가이드를 다룬다.
 ---
 
 # Spring Data JPA 쿼리 패턴
+
+---
+
+## 이 스킬의 범위
+
+**다루는 것**
+- 쿼리 구현 패턴 — Query Methods, QueryDSL, @Query (JPQL·Native)
+- N+1 감지·해결, 페이징, Projection
+- Entity 최소 가이드 — ID 전략, 연관관계 기본 원칙, Auditing, Soft Delete
+
+**다루지 않는 것 (spring 에이전트에서 판단)**
+- 트랜잭션 경계 설계, 서비스·계층 분리, DTO vs Entity 반환 같은 설계 판단
+- 연관관계 상세 설계, 상속 전략, Embeddable, 낙관적/비관적 락
+- 영속성 컨텍스트 라이프사이클 전반, OSIV 정책 결정
+
+에이전트는 원리·판단·설계를, 이 스킬은 JPA 고유 문법과 패턴을 맡는다.
+
+---
+
+## 진단 플로우
+
+쿼리·성능 이상이 있을 때 순서대로 탄다.
+
+1. **쿼리 로그부터** — `hibernate.show_sql` 말고 `p6spy` 또는 `datasource-proxy`로 바인딩 값까지 로깅
+2. **쿼리 건수 vs 결과 엔티티 수** — 쿼리 ≥ (엔티티 수 + 1)이면 **N+1 확정**
+3. **N+1 해법 순서** — `JOIN FETCH` → `@EntityGraph` → `default_batch_fetch_size`
+4. **`HHH000104` 경고** — 컬렉션 fetch join + 페이징. 쿼리 분리하거나 `@BatchSize`로 전환
+5. **`MultipleBagFetchException`** — 컬렉션 fetch join 2개 이상. `Set` 변경 또는 쿼리 분리
+6. **DTO 필요하면** — `@QueryProjection`(QueryDSL) 또는 JPQL `SELECT new ...` 또는 Interface Projection
+7. **벌크 연산** — `@Modifying(clearAutomatically = true)` 필수. 안 붙이면 영속성 컨텍스트가 DB와 어긋남
+
+---
+
+## 수치 감각
+
+- **`default_batch_fetch_size`** — 100~1000 권장. Oracle `IN` 리터럴 제한 1000 주의
+- **`hibernate.jdbc.batch_size`** — 20~50. INSERT/UPDATE 배치 효율 구간 (너무 크면 메모리)
+- **`hibernate.jdbc.fetch_size`** — 기본 0(드라이버 기본값). 대량 커서 조회는 100~1000
+- **페이지 크기** — UI 20~50, 내부 배치 500~1000
+- **N+1 판단** — 쿼리 수 ≥ (결과 엔티티 수 + 1)
+- **`order_inserts` / `order_updates`** — `true`로 설정해야 배치가 실제로 묶임
+- **`provider_disables_autocommit`** — `true`면 커넥션 획득 시 autocommit 호출 생략, OLTP 성능 향상
 
 ---
 
@@ -291,3 +333,23 @@ List<OrderDto> findOrderDtoByStatus(@Param("status") OrderStatus status);
 ### 양방향 연관관계 무한 루프
 - toString(), JSON 직렬화에서 순환 참조 발생
 - DTO로 변환 후 반환. Entity를 직접 API 응답으로 내보내지 않는다
+
+---
+
+## 버전별 차이
+
+Spring Boot 2 → 3 전환은 단순 업그레이드가 아니다. Jakarta 네임스페이스 이전 + Hibernate 5 → 6 동반 변경이라 코드 수정이 필요하다.
+
+**Hibernate 5 → 6 (Spring Boot 3)**
+- `javax.persistence.*` → `jakarta.persistence.*` (전면 교체)
+- ID 생성 기본값: `GenerationType.AUTO`가 `TABLE`/`IDENTITY` 대신 **`SEQUENCE`** 시도 (DB에 시퀀스 없으면 `hibernate_sequence` 자동 생성 → Flyway 환경에서 충돌 가능)
+- Query Result Tuple 반환 동작 변경 — 일부 쿼리 결과 타입이 달라짐
+- `@SQLDelete` / `@Where` → `@SoftDelete`, `@SQLRestriction` 권장 (신규 방식)
+- UUID 타입 네이티브 지원 개선
+- `hibernate.jdbc.batch_size` 기본 배치 효과 강화
+
+**Spring Data JPA 변화**
+- 3.x: `CrudRepository` 반환 타입 변경 (`Iterable` → `List`), Fluent `findBy()` API 추가
+- 3.2+: SQL Query Hint 지원, AOT 힌트 개선
+
+**확인법**: `build.gradle` / `pom.xml`의 `spring-boot-starter-parent` 버전 또는 `META-INF/spring.factories`에서 Boot 버전 먼저 본다.
