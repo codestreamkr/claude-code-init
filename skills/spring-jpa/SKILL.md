@@ -1,25 +1,63 @@
 ---
 name: spring-jpa
-description: Spring Data JPA 쿼리 패턴 전문 지식. Query Methods·QueryDSL·@Query·N+1·페이징·Projection 구현 패턴과 Entity 최소 가이드를 다룬다.
+description: Spring Data JPA 쿼리 패턴 전문 지식. Query Methods·QueryDSL·@Query·N+1·페이징·Projection 구현 패턴과 Entity 최소 가이드를 다룬다. 환경(Java·Boot·Hibernate·의존성) 감지 후 버전에 맞게 적용한다.
 ---
 
 # Spring Data JPA 쿼리 패턴
 
 ---
 
+## 환경 감지 — 코드 작성 전 필수 확인
+
+| 확인 항목 | 위치 / 기준 |
+|---|---|
+| 빌드 도구 | `pom.xml` 존재 → Maven / `build.gradle` 존재 → Gradle |
+| Spring Boot 버전 | Maven: `<parent>`의 `<version>` / Gradle: `id 'org.springframework.boot' version '...'` 또는 `libs.versions.toml` |
+| Java 버전 | Maven: `<java.version>` / Gradle: `sourceCompatibility` 또는 `toolchain` |
+| Hibernate 메이저 | Boot 2.x = Hibernate 5 (`javax.persistence.*`) / Boot 3.x = Hibernate 6 (`jakarta.persistence.*`) |
+| QueryDSL 의존성 | `querydsl-jpa` 존재 여부 |
+| MapStruct 의존성 | `mapstruct` 존재 여부 (DTO 변환) |
+| Lombok 의존성 | `lombok` 존재 여부 (`@Getter`, `@Builder` 사용 가능 여부) |
+| 쿼리 로깅 | `p6spy` / `datasource-proxy` 설정 여부 |
+| BaseEntity | `@MappedSuperclass` 기반 공통 Entity 존재 여부 |
+| ID 전략 | 기존 Entity의 `@GeneratedValue` 전략 |
+| DB 종류 | `application.yml`의 `spring.datasource.url` |
+
+버전과 의존성에 따라 문법·전략이 달라진다. 감지 결과는 사용자에게 먼저 공유한다.
+
+### 적용 절차 — 이 스킬의 코드를 읽는 방법
+
+**이 스킬의 모든 코드 블록은 최신 기준선(Spring Boot 3 / Hibernate 6 / Jakarta) 문법이다.** 감지된 환경이 다르면 그대로 복붙하면 컴파일 안 된다.
+
+1. **환경 감지**에서 Boot/Java/Hibernate/의존성을 먼저 확인
+2. 기준선과 다른 점이 있으면 하단 **버전 적용 규칙**의 변환표를 거쳐 출력
+3. 감지된 의존성에 따라 쿼리 패턴 선택 (예: QueryDSL 없으면 Query Methods + `@Query`만)
+4. 감지 결과를 사용자에게 먼저 공유 — "자네 프로젝트는 Boot 2.7 / Hibernate 5네. `import`를 `javax.persistence.*`로 바꿔 적용했네"
+
+이 절차를 건너뛰고 기준선 코드를 그대로 출력하면 버전 오류의 원인이 된다.
+
+---
+
 ## 이 스킬의 범위
 
-**다루는 것**
-- 쿼리 구현 패턴 — Query Methods, QueryDSL, @Query (JPQL·Native)
-- N+1 감지·해결, 페이징, Projection
-- Entity 최소 가이드 — ID 전략, 연관관계 기본 원칙, Auditing, Soft Delete
+이 스킬은 **JPA 분야의 구현 문법·패턴**만 담당한다. 설계 판단과 아키텍처 결정은 spring 에이전트가 맡는다.
 
-**다루지 않는 것 (spring 에이전트에서 판단)**
-- 트랜잭션 경계 설계, 서비스·계층 분리, DTO vs Entity 반환 같은 설계 판단
-- 연관관계 상세 설계, 상속 전략, Embeddable, 낙관적/비관적 락
-- 영속성 컨텍스트 라이프사이클 전반, OSIV 정책 결정
+**다루는 것 (JPA 구현 문법·패턴)**
+- 쿼리 구현 — Query Methods, QueryDSL, @Query (JPQL·Native)
+- 성능 패턴 — N+1 해결(fetch join·@EntityGraph·batch_fetch_size), 페이징, 벌크 연산
+- 매핑·조회 문법 — Projection, Pageable·Sort, `@Modifying`, auditing 어노테이션
+- Entity 작성에 필요한 최소 문법 가이드 (ID 전략, 관계 기본 원칙)
 
-에이전트는 원리·판단·설계를, 이 스킬은 JPA 고유 문법과 패턴을 맡는다.
+**다루지 않는 것 (spring 에이전트 영역)**
+- 트랜잭션 경계 설계 (`@Transactional` 범위·전파 선택)
+- 서비스·계층 분리, DTO vs Entity 반환 결정
+- 연관관계 상세 설계, 상속 전략, Embeddable, 낙관적/비관적 락 선택
+- 영속성 컨텍스트 라이프사이클 설계, OSIV 정책 결정
+- 도메인 모델 자체의 설계 (어떤 Entity를 둘지)
+
+판단·설계 질문이 들어오면 에이전트가 먼저 정리한 뒤, 구현 단계에서 이 스킬을 쓴다.
+
+**표준 우선 원칙**: 에이전트의 표준 우선 원칙을 따른다 — 별도 요구 없으면 Spring Data JPA 공식 권장 방식을 선택.
 
 ---
 
@@ -336,20 +374,43 @@ List<OrderDto> findOrderDtoByStatus(@Param("status") OrderStatus status);
 
 ---
 
-## 버전별 차이
+## 버전 적용 규칙
 
-Spring Boot 2 → 3 전환은 단순 업그레이드가 아니다. Jakarta 네임스페이스 이전 + Hibernate 5 → 6 동반 변경이라 코드 수정이 필요하다.
+환경 감지 결과에 맞춰 변환. 기준선(Boot 3 / Hibernate 6 / Jakarta)에서 과거 버전으로 내려가는 방향.
 
-**Hibernate 5 → 6 (Spring Boot 3)**
-- `javax.persistence.*` → `jakarta.persistence.*` (전면 교체)
-- ID 생성 기본값: `GenerationType.AUTO`가 `TABLE`/`IDENTITY` 대신 **`SEQUENCE`** 시도 (DB에 시퀀스 없으면 `hibernate_sequence` 자동 생성 → Flyway 환경에서 충돌 가능)
-- Query Result Tuple 반환 동작 변경 — 일부 쿼리 결과 타입이 달라짐
-- `@SQLDelete` / `@Where` → `@SoftDelete`, `@SQLRestriction` 권장 (신규 방식)
-- UUID 타입 네이티브 지원 개선
-- `hibernate.jdbc.batch_size` 기본 배치 효과 강화
+### Spring Boot 2 → 3 / Hibernate 5 → 6 변환
 
-**Spring Data JPA 변화**
-- 3.x: `CrudRepository` 반환 타입 변경 (`Iterable` → `List`), Fluent `findBy()` API 추가
-- 3.2+: SQL Query Hint 지원, AOT 힌트 개선
+| Boot 2 + Hibernate 5 | Boot 3 + Hibernate 6 |
+|---|---|
+| `javax.persistence.*` | `jakarta.persistence.*` (전면 교체) |
+| `javax.validation.*` | `jakarta.validation.*` |
+| `@SQLDelete` + `@Where` | `@SoftDelete`, `@SQLRestriction` (권장) |
+| `GenerationType.AUTO` 동작 안정적 | `SEQUENCE` 시도 → 시퀀스 없으면 `hibernate_sequence` 자동 생성 (Flyway 환경 주의) |
+| Query Result Tuple 기존 동작 | 일부 쿼리 결과 타입 변경 |
+| UUID 매핑에 `columnDefinition` 필요 | UUID 네이티브 지원 개선 |
 
-**확인법**: `build.gradle` / `pom.xml`의 `spring-boot-starter-parent` 버전 또는 `META-INF/spring.factories`에서 Boot 버전 먼저 본다.
+**Spring Data JPA 버전별 추가 변화**
+- 3.x: `CrudRepository` 반환 타입 `Iterable` → `List`
+- 3.2+: SQL Query Hint 지원, AOT 힌트 개선, Fluent `findBy()` API
+
+### 의존성에 따른 패턴 선택
+
+| 상황 | 선택 |
+|---|---|
+| QueryDSL 있음 | 동적 + 복잡 쿼리에 QueryDSL 적용 |
+| QueryDSL 없음 | Query Methods + `@Query`만 사용. QueryDSL 도입 제안은 별도 요청 시에만 |
+| MapStruct 있음 | DTO 변환에 `@Mapper` 사용 |
+| MapStruct 없음 | 직접 변환 (record 생성자 또는 정적 팩토리) |
+| Lombok 있음 | `@Getter`, `@Builder`, `@NoArgsConstructor(access = PROTECTED)` 사용 |
+| Lombok 없음 | 수동 getter·기본 생성자 작성 |
+| p6spy/datasource-proxy 있음 | 진단 시 바인딩 값까지 로깅 확인 |
+| p6spy 없음 | `hibernate.show_sql` + `format_sql`로 우선 확인, 도입은 별도 제안 |
+
+### Java 버전별 활용
+
+| Java | 적용 가능한 것 |
+|---|---|
+| 8 | 기본 문법만. DTO는 일반 클래스 |
+| 11 | `var` 타입 추론 |
+| 17+ | `record`로 Projection DTO 선언 (`record OrderDto(Long id, String status) {}`), JPQL `SELECT new ...`에도 사용 가능 |
+| 21 | 가상 스레드. 블로킹 JDBC 호출 성능 재검토. JPA는 여전히 블로킹이므로 가상 스레드 풀 크기 주의 |
