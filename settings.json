@@ -1,8 +1,7 @@
 {
-  "model": "opus",
   "statusLine": {
     "type": "command",
-    "command": "node ~/.claude/statusline.js"
+    "command": "node $HOME/.claude/statusline.js"
   },
   "enabledPlugins": {
     "playwright@claude-plugins-official": true,
