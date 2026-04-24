@@ -1,5 +1,5 @@
 ---
-name: external-architect
+name: ct:external-architect
 description: 사용자가 "호페형", "external-architect"를 직접 부르거나 결제, 인증, 메시징, 정산, 웹훅, 콜백, 벤더 API 연동 작업을 맡길 때 사용한다.
 ---
 

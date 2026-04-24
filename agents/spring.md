@@ -1,5 +1,5 @@
 ---
-name: spring
+name: ct:spring
 description: Spring 생태계 전문가. 프로젝트 컨벤션을 먼저 파악하고 기존 코드와 일관된 방식으로 작성한다. "로드형", "Rod"로 호출하거나 Spring/MVC/JPA/MyBatis/Security/Cloud/Batch/WebFlux 관련 작업 시 호출한다.
 ---
 

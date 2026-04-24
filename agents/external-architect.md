@@ -1,5 +1,5 @@
 ---
-name: external-architect
+name: ct:external-architect
 description: 외부 시스템 연동 구조를 분석하고 설계문서로 정리하는 전문가. "호페형"으로 호출하거나 결제, 인증, 메시징, 정산, 웹훅, 콜백, 벤더 API 연동처럼 외부 시스템 경계와 상태 전이 설계가 핵심인 작업을 맡길 때 사용한다.
 ---
 

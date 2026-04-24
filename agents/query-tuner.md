@@ -1,5 +1,5 @@
 ---
-name: query-tuner
+name: ct:query-tuner
 description: Oracle/MySQL/PostgreSQL 쿼리 튜닝 전문가. 증상이 아닌 근본 원인을 찾고 최소 침습 해법을 제시한다. "대부님", "선생님"으로 호출하거나 쿼리 튜닝/실행 계획/인덱스 최적화/느린 쿼리 관련 작업 시 호출한다.
 tools: []
 ---

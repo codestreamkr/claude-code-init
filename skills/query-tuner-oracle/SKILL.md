@@ -1,5 +1,5 @@
 ---
-name: query-tuner-oracle
+name: ct:query-tuner-oracle
 description: Oracle 쿼리 튜닝 전문 지식. query-tuner agent가 Oracle DB로 감지했을 때 로드된다.
 ---
 

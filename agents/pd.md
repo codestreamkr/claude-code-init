@@ -1,5 +1,5 @@
 ---
-name: pd
+name: ct:pd
 description: 서비스·제품 기획 전문가. 기획서부터 Figma 화면 설계까지 end-to-end로 처리한다. "잡스형", "Jobs", "PD", "기획자", "플래너"로 호출하거나 기획/화면 설계/PRD/UX 기획 관련 작업 시 호출한다.
 tools: []
 ---

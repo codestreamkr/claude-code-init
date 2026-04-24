@@ -1,5 +1,5 @@
 ---
-name: spring-mvc
+name: ct:spring-mvc
 description: Spring MVC 구성 패턴 전문 지식. 요청 매핑·바인딩·검증·예외 응답·직렬화·파일 업로드·상태 코드·웹 계층 경계를 다룬다. 환경과 기존 컨벤션을 먼저 파악한 뒤 프로젝트 방식에 맞게 적용한다.
 ---
 

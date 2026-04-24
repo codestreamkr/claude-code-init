@@ -1,5 +1,5 @@
 ---
-name: spring-security
+name: ct:spring-security
 description: Spring Security 구성 패턴 전문 지식. SecurityFilterChain·JWT·OAuth2(Login/Resource Server)·CORS·CSRF·메서드 보안·보안 헤더·Refresh 로테이션·로그아웃·테스트·감사 이벤트까지 다룬다. 환경(Java·Boot·빌드 도구) 감지 후 버전에 맞게 적용한다.
 ---
 

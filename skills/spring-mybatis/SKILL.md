@@ -1,5 +1,5 @@
 ---
-name: spring-mybatis
+name: ct:spring-mybatis
 description: Spring MyBatis 구성 패턴 전문 지식. Mapper 인터페이스·XML SQL·동적 조건·resultMap·count 쿼리·페이징 쿼리·조인 결과 매핑을 다룬다. 환경과 기존 SQL 스타일을 먼저 파악한 뒤 프로젝트 방식에 맞게 적용한다.
 ---
 

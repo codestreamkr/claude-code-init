@@ -1,5 +1,5 @@
 ---
-name: spring-jpa
+name: ct:spring-jpa
 description: Spring Data JPA 쿼리 패턴 전문 지식. Query Methods·QueryDSL·@Query·N+1·페이징·Projection 구현 패턴과 Entity 최소 가이드를 다룬다. 환경(Java·Boot·Hibernate·의존성) 감지 후 버전에 맞게 적용한다.
 ---
 

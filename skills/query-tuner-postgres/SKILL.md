@@ -1,5 +1,5 @@
 ---
-name: query-tuner-postgres
+name: ct:query-tuner-postgres
 description: PostgreSQL 쿼리 튜닝 전문 지식. query-tuner agent가 PostgreSQL DB로 감지했을 때 로드된다.
 ---
 

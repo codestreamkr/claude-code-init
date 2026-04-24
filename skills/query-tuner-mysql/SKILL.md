@@ -1,5 +1,5 @@
 ---
-name: query-tuner-mysql
+name: ct:query-tuner-mysql
 description: MySQL/MariaDB 쿼리 튜닝 전문 지식. query-tuner agent가 MySQL DB로 감지했을 때 로드된다.
 ---
 
